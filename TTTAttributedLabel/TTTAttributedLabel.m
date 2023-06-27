@@ -858,12 +858,14 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
     NSArray *lines = (__bridge NSArray *)CTFrameGetLines(frame);
     CGPoint origins[[lines count]];
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins);
-
+    CGFloat tMin = CGFLOAT_MAX;
+    
     CFIndex lineIndex = 0;
     for (id line in lines) {
         CGFloat ascent = 0.0f, descent = 0.0f, leading = 0.0f;
         CGFloat width = (CGFloat)CTLineGetTypographicBounds((__bridge CTLineRef)line, &ascent, &descent, &leading) ;
-
+        CGFloat lineHeight = ascent + descent;
+        
         for (id glyphRun in (__bridge NSArray *)CTLineGetGlyphRuns((__bridge CTLineRef)line)) {
             NSDictionary *attributes = (__bridge NSDictionary *)CTRunGetAttributes((__bridge CTRunRef) glyphRun);
             CGColorRef strokeColor = CGColorRefFromColor([attributes objectForKey:kTTTBackgroundStrokeColorAttributeName]);
@@ -879,6 +881,11 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
 
                 runBounds.size.width = (CGFloat)CTRunGetTypographicBounds((__bridge CTRunRef)glyphRun, CFRangeMake(0, 0), &runAscent, &runDescent, NULL) + fillPadding.left + fillPadding.right;
                 runBounds.size.height = runAscent + runDescent + fillPadding.top + fillPadding.bottom;
+                
+                //normalize line height
+                if (runBounds.size.height < lineHeight) {
+                    runBounds.size.height = lineHeight;
+                }
 
                 CGFloat xOffset = 0.0f;
                 CFRange glyphRange = CTRunGetStringRange((__bridge CTRunRef)glyphRun);
@@ -900,6 +907,11 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                     runBounds.size.width = width;
                 }
 
+                //cap origin to the beginning of the label
+                if (tMin == CGFLOAT_MAX) {
+                    tMin = runBounds.origin.y;
+                }
+                runBounds.origin.y = tMin;
                 CGPathRef path = [[UIBezierPath bezierPathWithRoundedRect:CGRectInset(UIEdgeInsetsInsetRect(runBounds, self.linkBackgroundEdgeInset), lineWidth, lineWidth) cornerRadius:cornerRadius] CGPath];
 
                 CGContextSetLineJoin(c, kCGLineJoinRound);
